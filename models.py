@@ -1,4 +1,4 @@
- from datetime import UTC, datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
@@ -63,9 +63,9 @@ class UserRead(UserBase):
     profile_image_url: str | None = None
     created_at: datetime
     updated_at: datetime
-    total_orders: int
-    total_spent: int
-    total_reviews: int
+    total_bookings: int = 0
+    total_spent: int = 0
+    email_verified: bool = False
     role: UserRole
 
 
@@ -73,12 +73,6 @@ class UserSummary(SQLModel):
     id: UUID
     name: str | None = None
     email: EmailStr
-
-
-class UserWithRelationsRead(UserRead):
-    orders: list["OrderRead"] = Field(default_factory=list)
-    reviews: list["ReviewRead"] = Field(default_factory=list)
-    cart: Optional["CartRead"] = None
 
 
 class UserCreate(UserBase):
@@ -140,11 +134,25 @@ class UserRegisterResponse(SQLModel):
     message: str
     user: UserRead
 
+class BookingStatus(str, Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    REFUNDED = "refunded"
+    FAILED = "failed"
+    REFUND_PENDING = "refund_pending"
+    REFUND_COMPLETED = "refund_completed"
+    REFUND_FAILED = "refund_failed"
+
+
 class Hotel(SQLModel, table=True):
     id: UUID | None = Field(
         default_factory=uuid4,
         sa_column=Column(PG_UUID(as_uuid=True), primary_key=True, unique=True, nullable=False),
     )
+    user_id: UUID = Field(foreign_key="user.id", nullable=False, index=True)
+    user: User = Relationship(back_populates="hotels")
     name: str
     description: str
     image_url: str
@@ -153,6 +161,7 @@ class Hotel(SQLModel, table=True):
     rating: float
     num_reviews: int
     bookings: list["Booking"] = Relationship(back_populates="hotel")
+
 
 class Booking(SQLModel, table=True):
     id: UUID | None = Field(
@@ -167,15 +176,3 @@ class Booking(SQLModel, table=True):
     check_out_date: datetime
     total_price: int
     status: BookingStatus = Field(default=BookingStatus.PENDING)
-
-class BookingStatus(str, Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    CANCELLED = "cancelled"
-    COMPLETED = "completed"
-    REFUNDED = "refunded"
-    FAILED = "failed"
-    REFUND_FAILED = "refund_failed"
-    REFUND_PENDING = "refund_pending"
-    REFUND_COMPLETED = "refund_completed"
-    REFUND_FAILED = "refund_failed"

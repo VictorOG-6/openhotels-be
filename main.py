@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from database import init_db
 from routers import auth, user
 from routers.hotels import router as hotels_router
 from services.image_service import image_service
@@ -14,6 +15,8 @@ from services.nuitee.client import NuiteeClient
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("DATABASE_URL"):
+        init_db()
     client = NuiteeClient.from_env()
     app.state.nuitee = client
     try:

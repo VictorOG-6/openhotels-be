@@ -11,15 +11,12 @@ from sqlmodel import select
 from database import SessionDep
 from models import (
     AuthModel,
-    EmailVerification,
     GoogleUser,
     Login,
     RefreshToken,
     RefreshTokenRequest,
-    ResendOTPRequest,
     Token,
     User,
-    VerifyOTPRequest,
     password_hash,
 )
 from services.access_token import (
@@ -27,9 +24,7 @@ from services.access_token import (
     create_refresh_token,
     verify_token,
 )
-from services.email import send_verification_email, send_welcome_email
 from services.google import get_or_create_google_user
-from services.otp import generate_otp
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 oauth = OAuth()

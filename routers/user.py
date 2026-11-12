@@ -1,26 +1,18 @@
-from datetime import UTC, datetime, timedelta
-
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
-from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
 from database import SessionDep
 from models import (
-    EmailVerification,
-    Order,
-    OrderItem,
+    AuthModel,
     User,
     UserCreate,
     UserRead,
-    UserRegisterResponse,
     UserRole,
     UserUpdate,
     password_hash,
 )
 from services.access_token import get_current_admin, get_current_user
-from services.email import send_verification_email
 from services.image_service import image_service
-from services.otp import generate_otp
 from routers.auth import create_tokens_for_user
 
 router = APIRouter(prefix="/user", tags=["Users"])
@@ -155,21 +147,7 @@ def get_users(
     email: str | None = Query(None, description="Filter users by email (partial match)"),
     role: UserRole | None = Query(None, description="Filter users by role"),
 ):
-    statement = (
-        select(User)
-        .options(
-            selectinload(User.orders)
-            .selectinload(Order.order_items)
-            .selectinload(OrderItem.product),
-            selectinload(User.orders)
-            .selectinload(Order.order_items)
-            .selectinload(OrderItem.product_variant),
-            selectinload(User.orders)
-            .selectinload(Order.order_items)
-            .selectinload(OrderItem.product_sub_variant),
-        )
-        .order_by(User.created_at.desc())
-    )
+    statement = select(User).order_by(User.created_at.desc())
 
     if name:
         statement = statement.where(col(User.name).contains(name))
