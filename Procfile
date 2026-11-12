@@ -1,2 +1,2 @@
 release: alembic upgrade head
-web: uvicorn main:app --host 0.0.0.0 --port 8000 --log-level warning --no-access-log
+web: uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level warning --no-access-log
