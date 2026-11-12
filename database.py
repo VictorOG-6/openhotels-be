@@ -8,6 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 _engine: Engine | None = None
 
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def database_url() -> str:
     url = (os.getenv("DATABASE_URL") or "").strip()
