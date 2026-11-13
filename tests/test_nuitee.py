@@ -9,7 +9,13 @@ import httpx
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from schemas.nuitee import BookRequest, BookingListQuery, HotelRatesRequest, PrebookRequest
+from schemas.nuitee import (
+    BookRequest,
+    BookingListQuery,
+    HotelListQuery,
+    HotelRatesRequest,
+    PrebookRequest,
+)
 from services.nuitee.authz import resolve_caller, scoped_tag_filter
 from services.nuitee.client import NuiteeClient, NuiteeError
 from services.nuitee.settings import NuiteeSettings, normalize_base_url
@@ -74,7 +80,7 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             BookingListQuery.model_validate({})
 
-    def test_rates_require_a_location(self):
+    def test_rates_require_hotel_ids(self):
         with self.assertRaises(ValueError):
             HotelRatesRequest.model_validate(
                 {
@@ -85,6 +91,48 @@ class SchemaTests(unittest.TestCase):
                     "checkout": "2027-01-16",
                 }
             )
+
+    def test_rates_reject_hotel_list_fields(self):
+        with self.assertRaises(ValueError):
+            HotelRatesRequest.model_validate(
+                {
+                    "hotelIds": ["lp1897"],
+                    "occupancies": [{"adults": 2}],
+                    "currency": "USD",
+                    "guestNationality": "US",
+                    "checkin": "2027-01-15",
+                    "checkout": "2027-01-17",
+                    "countryCode": "US",
+                }
+            )
+
+    def test_rates_accepts_provider_payload(self):
+        payload = HotelRatesRequest.model_validate(
+            {
+                "hotelIds": ["lp1897"],
+                "occupancies": [
+                    {"rooms": 1, "adults": 2, "children": [11]},
+                    {"rooms": 1, "adults": 1},
+                ],
+                "currency": "USD",
+                "guestNationality": "US",
+                "checkin": "2027-01-15",
+                "checkout": "2027-01-17",
+                "timeout": 6,
+                "roomMapping": True,
+            }
+        )
+        dumped = payload.model_dump(by_alias=True, exclude_none=True)
+        self.assertEqual(dumped["hotelIds"], ["lp1897"])
+        self.assertNotIn("countryCode", dumped)
+
+    def test_hotel_list_requires_an_anchor(self):
+        with self.assertRaises(ValueError):
+            HotelListQuery.model_validate({"cityName": "New York"})
+
+    def test_hotel_list_country_code_is_enough(self):
+        query = HotelListQuery.model_validate({"countryCode": "US", "cityName": "New York"})
+        self.assertEqual(query.country_code, "US")
 
     def test_book_rejects_raw_card_payloads(self):
         with self.assertRaises(ValueError):

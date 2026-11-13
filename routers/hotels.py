@@ -1,8 +1,7 @@
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
-from pydantic import ValidationError
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 
 from schemas.nuitee import (
     BookRequest,
@@ -49,24 +48,6 @@ def _params(model) -> dict[str, Any]:
     return model.model_dump(by_alias=True, exclude_none=True, mode="json")
 
 
-def _query(model_type, request: Request):
-    try:
-        return model_type.model_validate(dict(request.query_params))
-    except ValidationError as exc:
-        detail = [
-            {
-                "loc": ["query", *error.get("loc", ())],
-                "msg": error.get("msg", "Invalid value"),
-                "type": error.get("type", "value_error"),
-            }
-            for error in exc.errors()
-        ]
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=detail,
-        ) from exc
-
-
 @router.get("/types")
 async def list_hotel_types(client: NuiteeClient = Depends(get_nuitee)):
     result = await _provider(client.list_hotel_types())
@@ -76,8 +57,10 @@ async def list_hotel_types(client: NuiteeClient = Depends(get_nuitee)):
 
 
 @router.get("")
-async def list_hotels(request: Request, client: NuiteeClient = Depends(get_nuitee)):
-    query = _query(HotelListQuery, request)
+async def list_hotels(
+    query: Annotated[HotelListQuery, Query()],
+    client: NuiteeClient = Depends(get_nuitee),
+):
     result = await _provider(client.list_hotels(_params(query)))
     if result is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -126,11 +109,10 @@ async def create_booking(
 
 @router.get("/bookings")
 async def list_bookings(
-    request: Request,
+    query: Annotated[BookingListQuery, Query()],
     caller=Depends(get_caller),
     client: NuiteeClient = Depends(get_nuitee),
 ):
-    query = _query(BookingListQuery, request)
     params = _params(query)
     if caller.user_id:
         params["customTags"] = scoped_tag_filter(params.get("customTags"), caller.user_id)
@@ -142,12 +124,11 @@ async def list_bookings(
 
 @router.get("/bookings/{booking_id}")
 async def get_booking(
-    request: Request,
     booking_id: Annotated[str, Path(pattern=_ID)],
+    query: Annotated[BookingDetailQuery, Query()],
     caller=Depends(get_caller),
     client: NuiteeClient = Depends(get_nuitee),
 ):
-    query = _query(BookingDetailQuery, request)
     result = await _provider(client.get_booking(booking_id, _params(query)))
     if result is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -158,11 +139,10 @@ async def get_booking(
 
 @router.get("/{hotel_id}")
 async def get_hotel(
-    request: Request,
     hotel_id: Annotated[str, Path(pattern=_ID)],
+    query: Annotated[HotelDetailQuery, Query()],
     client: NuiteeClient = Depends(get_nuitee),
 ):
-    query = _query(HotelDetailQuery, request)
     result = await _provider(client.get_hotel(hotel_id, _params(query)))
     if result is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)

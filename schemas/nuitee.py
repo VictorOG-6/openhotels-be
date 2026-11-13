@@ -52,9 +52,10 @@ class HotelListQuery(NuiteeModel):
     place_id: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, min_length=2, max_length=8)
     hotel_ids: str | None = Field(default=None, max_length=20000)
+    iata_code: str | None = Field(default=None, min_length=3, max_length=3)
     advanced_accessibility_only: bool | None = None
 
-    @field_validator("country_code")
+    @field_validator("country_code", "iata_code")
     @classmethod
     def uppercase_country(cls, value: str | None) -> str | None:
         return value.upper() if value else value
@@ -68,25 +69,27 @@ class HotelListQuery(NuiteeModel):
 
     @model_validator(mode="after")
     def require_search(self) -> "HotelListQuery":
-        has_area = self.latitude is not None or self.longitude is not None or self.radius is not None
-        if has_area and not (
-            self.latitude is not None and self.longitude is not None and self.radius is not None
-        ):
-            raise ValueError("latitude, longitude, and radius must be provided together")
+        has_lat = self.latitude is not None
+        has_lng = self.longitude is not None
+        if has_lat != has_lng:
+            raise ValueError("latitude and longitude must be provided together")
+        if self.radius is not None and not (has_lat and has_lng):
+            raise ValueError("radius requires latitude and longitude")
+        has_coordinates = has_lat and has_lng
         if not any(
             [
                 self.country_code,
-                self.city_name,
-                self.hotel_name,
-                self.hotel_ids,
+                has_coordinates,
                 self.place_id,
-                self.ai_search,
-                self.zip,
                 self.last_updated_at,
-                has_area,
+                self.iata_code,
+                self.hotel_ids,
             ]
         ):
-            raise ValueError("Provide a city, hotel, place, coordinates, or hotel ids")
+            raise ValueError(
+                "Provide countryCode, latitude and longitude, placeId, lastUpdatedAt, "
+                "iataCode, or hotelIds"
+            )
         return self
 
 
@@ -102,98 +105,32 @@ class Occupancy(NuiteeModel):
     rooms: int | None = Field(default=None, ge=1, le=8)
 
 
-class RateSort(NuiteeModel):
-    field: Literal["top_picks", "price", "revenue"]
-    direction: Literal["ascending", "descending"] | None = None
-
-
-class LoyaltyMembership(NuiteeModel):
-    membership_id: str = Field(min_length=1, max_length=64)
-    program_id: str = Field(min_length=1, max_length=32)
-
-
 class HotelRatesRequest(NuiteeModel):
-    hotel_ids: list[str] | None = Field(default=None, min_length=1, max_length=5000)
+    hotel_ids: list[str] = Field(min_length=1, max_length=5000)
     occupancies: list[Occupancy] = Field(min_length=1, max_length=8)
     currency: str = Field(min_length=3, max_length=3)
     guest_nationality: str = Field(min_length=2, max_length=2)
     checkin: date
     checkout: date
     timeout: int | None = Field(default=None, ge=1, le=30)
-    max_rates_per_hotel: int | None = Field(default=None, ge=1, le=100)
-    board_type: str | None = Field(default=None, max_length=40)
-    refundable_rates_only: bool | None = None
-    room_amenities: list[int] | None = Field(default=None, max_length=50)
-    room_amenities_filter: str | None = Field(default=None, max_length=200)
-    amenity_filter_logic: Literal["AND", "OR"] | None = None
-    bed_types: list[str] | None = Field(default=None, max_length=10)
-    sort: list[RateSort] | None = Field(default=None, max_length=3)
     room_mapping: bool | None = None
-    hotel_name: str | None = Field(default=None, max_length=200)
-    country_code: str | None = Field(default=None, min_length=2, max_length=2)
-    city_name: str | None = Field(default=None, max_length=120)
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
-    radius: int | None = Field(default=None, ge=1, le=100000)
-    iata_code: str | None = Field(default=None, min_length=3, max_length=3)
-    limit: int | None = Field(default=None, ge=1, le=5000)
-    offset: int | None = Field(default=None, ge=0)
-    ai_search: str | None = Field(default=None, max_length=500)
-    min_reviews_count: int | None = Field(default=None, ge=0)
-    min_rating: float | None = Field(default=None, ge=0, le=10)
-    zip: str | None = Field(default=None, max_length=20)
-    place_id: str | None = Field(default=None, max_length=256)
-    star_rating: list[float] | None = Field(default=None, max_length=10)
-    hotel_type_ids: list[int] | None = Field(default=None, max_length=50)
-    chain_ids: list[int] | None = Field(default=None, max_length=50)
-    facilities: list[int] | None = Field(default=None, max_length=50)
-    strict_facility_filtering: bool | None = None
-    advanced_accessibility_only: bool | None = None
-    feed: str | None = Field(default=None, max_length=64)
-    include_hotel_data: bool | None = None
-    margin: float | None = Field(default=None, ge=-100, le=100)
-    session_id: str | None = Field(default=None, max_length=128)
-    loyalty_program: str | None = Field(default=None, max_length=32)
-    loyalty_program_details: list[LoyaltyMembership] | None = Field(default=None, max_length=5)
 
-    @field_validator("currency", "guest_nationality", "country_code", "iata_code")
+    @field_validator("currency", "guest_nationality")
     @classmethod
-    def uppercase_codes(cls, value: str | None) -> str | None:
-        return value.upper() if isinstance(value, str) else value
+    def uppercase_codes(cls, value: str) -> str:
+        return value.upper()
 
     @field_validator("hotel_ids")
     @classmethod
-    def hotel_id_values(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return value
+    def hotel_id_values(cls, value: list[str]) -> list[str]:
         if any(not _HOTEL_ID.fullmatch(hotel_id) for hotel_id in value):
             raise ValueError("hotelIds contain an invalid id")
         return value
 
     @model_validator(mode="after")
-    def require_location_and_dates(self) -> "HotelRatesRequest":
+    def validate_stay_dates(self) -> "HotelRatesRequest":
         if self.checkout <= self.checkin:
             raise ValueError("checkout must be after checkin")
-        has_coordinates = self.latitude is not None or self.longitude is not None
-        if has_coordinates and (self.latitude is None or self.longitude is None or self.radius is None):
-            raise ValueError("latitude, longitude, and radius must be provided together")
-        has_location = any(
-            [
-                self.hotel_ids,
-                self.country_code,
-                self.city_name,
-                self.latitude is not None,
-                self.iata_code,
-                self.place_id,
-                self.ai_search,
-            ]
-        )
-        if not has_location:
-            raise ValueError(
-                "Provide hotelIds, a city or country, coordinates, placeId, iataCode, or aiSearch"
-            )
-        if self.ai_search and any([self.hotel_ids, self.place_id, self.iata_code, self.zip]):
-            raise ValueError("aiSearch cannot be combined with hotelIds, placeId, iataCode, or zip")
         return self
 
 
