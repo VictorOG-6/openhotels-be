@@ -15,7 +15,7 @@ def main() -> None:
 
     with Session(get_engine()) as db:
         try:
-            admin = seed_initial_admin(db, email_verified=True)
+            admin = seed_initial_admin(db)
             print(f"Successfully created admin user: {admin.email}")
         except (ValueError, RuntimeError) as exc:
             print(f"Error: {exc}")

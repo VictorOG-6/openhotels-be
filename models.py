@@ -15,7 +15,6 @@ password_hash = PasswordHash.recommended()
 class GoogleUser(SQLModel):
     sub: str
     email: EmailStr
-    email_verified: bool = False
     name: str | None = None
     given_name: str | None = None
     family_name: str | None = None
@@ -48,7 +47,6 @@ class User(UserBase, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False, onupdate=func.now()),
     )
     hashed_password: str | None = None
-    email_verified: bool = Field(default=False)
     google_sub: str | None = Field(default=None, unique=True, index=True)
     profile_image_url: str | None = Field(default=None, max_length=500)
     hotels: list["Hotel"] = Relationship(back_populates="user")
@@ -65,7 +63,6 @@ class UserRead(UserBase):
     updated_at: datetime
     total_bookings: int = 0
     total_spent: int = 0
-    email_verified: bool = False
     role: UserRole
 
 
@@ -129,10 +126,6 @@ class AuthModel(SQLModel):
     refresh_token: str
     token_type: str
 
-
-class UserRegisterResponse(SQLModel):
-    message: str
-    user: UserRead
 
 class BookingStatus(str, Enum):
     PENDING = "pending"

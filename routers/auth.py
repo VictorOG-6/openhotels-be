@@ -144,12 +144,6 @@ def login(request: Login, session: SessionDep):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email before logging in",
-        )
-
     access_token, refresh_token = create_tokens_for_user(user, session)
 
     return {

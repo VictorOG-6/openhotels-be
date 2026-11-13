@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from models import User, UserRole, password_hash
 
 
-def seed_initial_admin(db: Session, *, email_verified: bool = False) -> User:
+def seed_initial_admin(db: Session) -> User:
     """
     Creates the initial admin user from environment variables.
 
@@ -37,7 +37,6 @@ def seed_initial_admin(db: Session, *, email_verified: bool = False) -> User:
         total_orders=0,
         total_spent=0,
         role=UserRole.ADMIN,
-        email_verified=email_verified,
     )
 
     db.add(admin)
